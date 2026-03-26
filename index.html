@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reaction Timer — Portfolio Project</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface2: #263348;
+    --text: #F1F5F9;
+    --muted: #94A3B8;
+    --ready: #10B981;
+    --wait: #F59E0B;
+    --result: #3B82F6;
+    --error: #EF4444;
+    --border: rgba(148,163,184,0.12);
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  header {
+    width: 100%;
+    max-width: 960px;
+    padding: 2rem 1.5rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  header h1 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  header span {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .layout {
+    width: 100%;
+    max-width: 960px;
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 1.25rem;
+    flex: 1;
+  }
+
+  @media (max-width: 700px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .arena-card {
+    background: var(--surface);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-height: 420px;
+  }
+
+  #three-canvas {
+    width: 100%;
+    flex: 1;
+    display: block;
+    cursor: pointer;
+  }
+
+  .arena-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    gap: 12px;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .state-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+  }
+
+  .state-badge.idle { background: rgba(148,163,184,0.15); color: var(--muted); }
+  .state-badge.waiting { background: rgba(245,158,11,0.18); color: var(--wait); }
+  .state-badge.ready { background: rgba(16,185,129,0.18); color: var(--ready); }
+  .state-badge.result { background: rgba(59,130,246,0.18); color: var(--result); }
+  .state-badge.false-start { background: rgba(239,68,68,0.18); color: var(--error); }
+
+  .state-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: none;
+  }
+
+  .state-badge.waiting .state-dot,
+  .state-badge.ready .state-dot {
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  .overlay-headline {
+    font-family: 'Outfit', sans-serif;
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    transition: all 0.3s ease;
+  }
+
+  .overlay-sub {
+    font-size: 0.875rem;
+    color: var(--muted);
+    max-width: 280px;
+    line-height: 1.6;
+  }
+
+  .result-time {
+    font-family: 'Outfit', sans-serif;
+    font-size: clamp(2.5rem, 8vw, 5rem);
+    font-weight: 700;
+    color: var(--result);
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .result-ms {
+    font-size: 1.25rem;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .arena-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    background: var(--surface);
+  }
+
+  .btn {
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 0.01em;
+  }
+
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: var(--ready);
+    color: #fff;
+    flex: 1;
+  }
+
+  .btn-primary:hover { background: #0ea271; }
+  .btn-primary:disabled { background: rgba(16,185,129,0.3); cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    background: rgba(148,163,184,0.1);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { background: rgba(148,163,184,0.18); color: var(--text); }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    padding: 1.1rem 1.25rem;
+  }
+
+  .stat-card h3 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .stat-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .stat-value.accent-ready { color: var(--ready); }
+  .stat-value.accent-result { color: var(--result); }
+
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .history-list::-webkit-scrollbar { width: 4px; }
+  .history-list::-webkit-scrollbar-track { background: transparent; }
+  .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--surface2);
+    font-size: 0.82rem;
+    transition: opacity 0.3s ease;
+  }
+
+  .history-item .attempt-num {
+    color: var(--muted);
+    font-size: 0.72rem;
+    min-width: 24px;
+  }
+
+  .history-item .attempt-time {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .history-item .attempt-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(148,163,184,0.1);
+    border-radius: 2px;
+    margin: 0 10px;
+    overflow: hidden;
+  }
+
+  .history-item .attempt-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--result);
+    transition: width 0.4s ease;
+  }
+
+  .history-item.best .attempt-time { color: var(--ready); }
+  .history-item.best .attempt-fill { background: var(--ready); }
+
+  .instructions-card {
+    background: var(--surface);
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    padding: 1.1rem 1.25rem;
+  }
+
+  .instructions-card h3 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .instructions-card ol {
+    padding-left: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .instructions-card li {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .instructions-card li strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .empty-history {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+    padding: 1.5rem 0;
+  }
+
+  footer {
+    width: 100%;
+    max-width: 960px;
+    padding: 1rem 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Reaction Timer</h1>
+  <span>Three.js Portfolio Demo</span>
+</header>
+
+<div class="layout">
+  <div class="arena-card">
+    <canvas id="three-canvas"></canvas>
+    <div class="arena-overlay" id="overlay">
+      <div class="state-badge idle" id="state-badge">
+        <div class="state-dot"></div>
+        <span id="state-label">Ready to start</span>
+      </div>
+      <div class="overlay-headline" id="overlay-headline">Test Your Reflexes</div>
+      <div class="overlay-sub" id="overlay-sub">Click the arena and react the moment the shape turns green.</div>
+    </div>
+    <div class="arena-footer">
+      <button class="btn btn-primary" id="btn-main" onclick="handleMainButton()">Start Game</button>
+      <button class="btn btn-ghost" id="btn-reset" onclick="resetGame()" style="display:none">Reset</button>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="stat-card">
+      <h3>Session Stats</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">Average</span>
+          <span class="stat-value accent-result" id="stat-avg">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Best</span>
+          <span class="stat-value accent-ready" id="stat-best">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Attempts</span>
+          <span class="stat-value" id="stat-count">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Last</span>
+          <span class="stat-value" id="stat-last">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-card" style="flex:1">
+      <h3>History</h3>
+      <div class="history-list" id="history-list">
+        <div class="empty-history">No attempts yet</div>
+      </div>
+    </div>
+
+    <div class="instructions-card">
+      <h3>How to Play</h3>
+      <ol>
+        <li><strong>Start</strong> the game and watch the 3D scene</li>
+        <li>Wait for the shape to <strong>turn green</strong> — it will happen between 1 and 5 seconds</li>
+        <li><strong>Click</strong> the arena as fast as you can</li>
+        <li>Clicking too early is a <strong>false start</strong> — be patient!</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Built with Three.js · Vanilla JS · No frameworks</span>
+  <span>Timing via <code>performance.now()</code></span>
+</footer>
+
+<script>
+const STATES = { IDLE: 'idle', WAITING: 'waiting', READY: 'ready', RESULT: 'result', FALSE_START: 'false-start' };
+
+let state = STATES.IDLE;
+let waitTimer = null;
+let stimulusTime = null;
+let attempts = [];
+let animFrameId = null;
+
+const canvas = document.getElementById('three-canvas');
+const overlay = document.getElementById('overlay');
+
+// ─── Three.js Setup ───────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0F172A, 0.04);
+
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+camera.position.set(0, 2, 8);
+camera.lookAt(0, 0, 0);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0x334155, 1.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+dirLight.position.set(5, 10, 7);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+scene.add(dirLight);
+
+const pointLight1 = new THREE.PointLight(0x3B82F6, 2, 20);
+pointLight1.position.set(-4, 3, 4);
+scene.add(pointLight1);
+
+const pointLight2 = new THREE.PointLight(0x10B981, 0, 20);
+pointLight2.position.set(4, -2, 4);
+scene.add(pointLight2);
+
+// Materials
+const matIdle    = new THREE.MeshStandardMaterial({ color: 0x3B82F6, metalness: 0.4, roughness: 0.3, emissive: 0x1a3a6a });
+const matWaiting = new THREE.MeshStandardMaterial({ color: 0xF59E0B, metalness: 0.4, roughness: 0.3, emissive: 0x5a3800 });
+const matReady   = new THREE.MeshStandardMaterial({ color: 0x10B981, metalness: 0.3, roughness: 0.2, emissive: 0x053d28 });
+const matError   = new THREE.MeshStandardMaterial({ color: 0xEF4444, metalness: 0.4, roughness: 0.3, emissive: 0x5c0f0f });
+const matResult  = new THREE.MeshStandardMaterial({ color: 0x3B82F6, metalness: 0.4, roughness: 0.3, emissive: 0x1a3a6a });
+
+// Central shape group
+const group = new THREE.Group();
+scene.add(group);
+
+// Main icosahedron
+const mainGeo = new THREE.IcosahedronGeometry(1.4, 1);
+const mainMesh = new THREE.Mesh(mainGeo, matIdle.clone());
+mainMesh.castShadow = true;
+group.add(mainMesh);
+
+// Wireframe overlay
+const wireGeo = new THREE.IcosahedronGeometry(1.42, 1);
+const wireMat = new THREE.MeshBasicMaterial({ color: 0x3B82F6, wireframe: true, transparent: true, opacity: 0.18 });
+const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+group.add(wireMesh);
+
+// Orbiting satellites
+const satellites = [];
+const satPositions = [
+  { r: 3.2, a: 0,    b: 0.4, size: 0.28, speed: 0.8 },
+  { r: 2.8, a: 2.1,  b: 1.2, size: 0.22, speed: -1.1 },
+  { r: 3.5, a: 4.2,  b: -0.6, size: 0.32, speed: 0.6 },
+];
+satPositions.forEach(s => {
+  const geo = new THREE.OctahedronGeometry(s.size, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x94A3B8, metalness: 0.6, roughness: 0.3, transparent: true, opacity: 0.7 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  scene.add(mesh);
+  satellites.push({ mesh, ...s, angle: s.a });
+});
+
+// Ground plane (subtle)
+const groundGeo = new THREE.PlaneGeometry(30, 30);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x0F172A, metalness: 0, roughness: 1 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -3.5;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Particle field
+const particleCount = 80;
+const particleGeo = new THREE.BufferGeometry();
+const positions = new Float32Array(particleCount * 3);
+for (let i = 0; i < particleCount; i++) {
+  positions[i*3]   = (Math.random() - 0.5) * 20;
+  positions[i*3+1] = (Math.random() - 0.5) * 10;
+  positions[i*3+2] = (Math.random() - 0.5) * 12 - 4;
+}
+particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+const particleMat = new THREE.PointsMaterial({ color: 0x475569, size: 0.06, transparent: true, opacity: 0.8 });
+const particles = new THREE.Points(particleGeo, particleMat);
+scene.add(particles);
+
+// Ring
+const ringGeo = new THREE.TorusGeometry(2.2, 0.04, 8, 60);
+const ringMat = new THREE.MeshStandardMaterial({ color: 0x3B82F6, metalness: 0.8, roughness: 0.2, transparent: true, opacity: 0.5 });
+const ring = new THREE.Mesh(ringGeo, ringMat);
+ring.rotation.x = Math.PI / 3;
+group.add(ring);
+
+// Current active material
+let activeMat = matIdle;
+let targetEmissiveIntensity = 1;
+let currentEmissiveIntensity = 1;
+let scaleTarget = 1;
+let currentScale = 1;
+let flashPhase = 0;
+
+function setMaterial(mat, emissiveBoost = 1) {
+  mainMesh.material = mat.clone();
+  wireMesh.material.color.set(mat.color);
+  ringMat.color.set(mat.color);
+  pointLight1.color.set(mat.color);
+  pointLight2.color.set(mat.color);
+  activeMat = mat;
+  targetEmissiveIntensity = emissiveBoost;
+}
+
+// Resize
+function resize() {
+  const w = canvas.parentElement.clientWidth;
+  const h = Math.max(360, canvas.parentElement.clientHeight - 64);
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Animation loop
+let clock = new THREE.Clock();
+function animate() {
+  animFrameId = requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  const dt = clock.getDelta ? 0.016 : 0.016;
+
+  // Main group rotation
+  let spinSpeed = 0.25;
+  if (state === STATES.WAITING) spinSpeed = 0.5;
+  if (state === STATES.READY)   spinSpeed = 1.8;
+  if (state === STATES.FALSE_START) spinSpeed = 3;
+
+  group.rotation.y += 0.016 * spinSpeed;
+  group.rotation.x = Math.sin(t * 0.4) * 0.15;
+  group.rotation.z = Math.cos(t * 0.3) * 0.08;
+
+  // Satellites
+  satellites.forEach(s => {
+    s.angle += 0.016 * s.speed;
+    s.mesh.position.x = Math.cos(s.angle) * s.r;
+    s.mesh.position.y = Math.sin(s.angle * 0.7) * s.b * 1.2;
+    s.mesh.position.z = Math.sin(s.angle) * s.r * 0.6;
+    s.mesh.rotation.x += 0.03 * s.speed;
+    s.mesh.rotation.y += 0.02 * s.speed;
+  });
+
+  // Particles drift
+  particles.rotation.y += 0.0005;
+  particles.rotation.x += 0.0002;
+
+  // Scale breathe / bounce
+  if (state === STATES.READY) {
+    scaleTarget = 1 + Math.sin(t * 6) * 0.05;
+    flashPhase += 0.016;
+    mainMesh.material.emissiveIntensity = 1 + Math.sin(flashPhase * 8) * 0.5;
+    pointLight2.intensity = 2 + Math.sin(flashPhase * 6) * 1.5;
+    pointLight2.color.set(0x10B981);
+  } else if (state === STATES.WAITING) {
+    scaleTarget = 1 + Math.sin(t * 2) * 0.02;
+    pointLight2.intensity = 0.5 + Math.sin(t * 3) * 0.3;
+    pointLight2.color.set(0xF59E0B);
+  } else if (state === STATES.FALSE_START) {
+    scaleTarget = 1 + Math.sin(t * 12) * 0.08;
+    pointLight2.intensity = 3;
+    pointLight2.color.set(0xEF4444);
+  } else if (state === STATES.RESULT) {
+    scaleTarget = 1 + Math.sin(t * 1.5) * 0.04;
+    pointLight2.intensity = 1.5;
+    pointLight2.color.set(0x3B82F6);
+  } else {
+    scaleTarget = 1 + Math.sin(t * 1) * 0.02;
+    pointLight2.intensity = 0;
+  }
+
+  currentScale += (scaleTarget - currentScale) * 0.1;
+  group.scale.setScalar(currentScale);
+
+  // Ring pulse
+  ring.rotation.z += 0.008;
+  ring.rotation.y = t * 0.2;
+  if (state === STATES.READY) {
+    ringMat.opacity = 0.6 + Math.sin(t * 8) * 0.3;
+    ringMat.color.set(0x10B981);
+  } else if (state === STATES.WAITING) {
+    ringMat.opacity = 0.25 + Math.sin(t * 2) * 0.1;
+    ringMat.color.set(0xF59E0B);
+  } else {
+    ringMat.opacity = 0.3 + Math.sin(t * 0.8) * 0.05;
+    ringMat.color.set(0x3B82F6);
+  }
+
+  // Camera gentle orbit
+  camera.position.x = Math.sin(t * 0.12) * 0.8;
+  camera.position.y = 2 + Math.sin(t * 0.09) * 0.3;
+  camera.lookAt(0, 0, 0);
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// ─── Game Logic ───────────────────────────────────────────────────────────────
+function setGameState(newState, msg) {
+  state = newState;
+  const badge = document.getElementById('state-badge');
+  const label = document.getElementById('state-label');
+  const headline = document.getElementById('overlay-headline');
+  const sub = document.getElementById('overlay-sub');
+
+  badge.className = 'state-badge ' + newState;
+
+  if (newState === STATES.IDLE) {
+    label.textContent = 'Ready to start';
+    headline.textContent = 'Test Your Reflexes';
+    headline.style.color = '';
+    sub.textContent = 'Click the arena and react the moment the shape turns green.';
+    overlay.style.display = 'flex';
+    setMaterial(matIdle, 1);
+  } else if (newState === STATES.WAITING) {
+    label.textContent = 'Wait for it…';
+    headline.textContent = 'Stay Sharp';
+    headline.style.color = '#F59E0B';
+    sub.textContent = 'The shape will turn green at any moment. Don\'t click yet!';
+    overlay.style.display = 'flex';
+    setMaterial(matWaiting, 1.5);
+  } else if (newState === STATES.READY) {
+    label.textContent = 'GO NOW!';
+    headline.textContent = 'CLICK!';
+    headline.style.color = '#10B981';
+    sub.textContent = '';
+    overlay.style.display = 'flex';
+    setMaterial(matReady, 2);
+    flashPhase = 0;
+  } else if (newState === STATES.RESULT) {
+    label.textContent = 'Result';
+    const ms = msg;
+    headline.innerHTML = `<span class="result-time">${ms}<span class="result-ms">ms</span></span>`;
+    headline.style.color = '#3B82F6';
+    sub.textContent = getRating(ms);
+    overlay.style.display = 'flex';
+    setMaterial(matResult, 1.5);
+  } else if (newState === STATES.FALSE_START) {
+    label.textContent = 'False Start!';
+    headline.textContent = 'Too Early!';
+    headline.style.color = '#EF4444';
+    sub.textContent = 'You clicked before the signal. Wait for green!';
+    overlay.style.display = 'flex';
+    setMaterial(matError, 2);
+  }
+}
+
+function getRating(ms) {
+  if (ms < 150) return '⚡ Superhuman — are you sure you didn\'t click early?';
+  if (ms < 200) return '🏆 Exceptional reflexes!';
+  if (ms < 250) return '✨ Excellent reaction time!';
+  if (ms < 300) return '👍 Above average. Nice!';
+  if (ms < 400) return '😊 Average human reaction time.';
+  if (ms < 500) return '🙂 Keep practicing!';
+  return '😅 Slow and steady… try again!';
+}
+
+function updateStats() {
+  if (attempts.length === 0) return;
+  const avg = Math.round(attempts.reduce((a, b) => a + b, 0) / attempts.length);
+  const best = Math.min(...attempts);
+  document.getElementById('stat-avg').textContent = avg + 'ms';
+  document.getElementById('stat-best').textContent = best + 'ms';
+  document.getElementById('stat-count').textContent = attempts.length;
+  document.getElementById('stat-last').textContent = attempts[attempts.length - 1] + 'ms';
+
+  const list = document.getElementById('history-list');
+  const maxTime = Math.max(...attempts, 1000);
+  list.innerHTML = '';
+  [...attempts].reverse().forEach((ms, i) => {
+    const idx = attempts.length - i;
+    const isBest = ms === best && attempts.filter(a => a === best).length === 1 || ms === best;
+    const pct = Math.min(100, (ms / maxTime) * 100);
+    const item = document.createElement('div');
+    item.className = 'history-item' + (ms === best ? ' best' : '');
+    item.innerHTML = `
+      <span class="attempt-num">#${idx}</span>
+      <div class="attempt-bar"><div class="attempt-fill" style="width:${pct}%"></div></div>
+      <span class="attempt-time">${ms}ms</span>
+    `;
+    list.appendChild(item);
+  });
+}
+
+let gameActive = false;
+
+function handleMainButton() {
+  if (state === STATES.IDLE || state === STATES.RESULT || state === STATES.FALSE_START) {
+    startRound();
+  } else if (state === STATES.WAITING || state === STATES.READY) {
+    handleArenaClick();
+  }
+}
+
+function startRound() {
+  gameActive = true;
+  clearTimeout(waitTimer);
+  stimulusTime = null;
+
+  setGameState(STATES.WAITING);
+
+  document.getElementById('btn-main').textContent = 'Click here when GREEN';
+  document.getElementById('btn-reset').style.display = 'flex';
+
+  const delay = 1000 + Math.random() * 4000;
+  waitTimer = setTimeout(() => {
+    if (state !== STATES.WAITING) return;
+    stimulusTime = performance.now();
+    setGameState(STATES.READY);
+    document.getElementById('btn-main').textContent = 'CLICK NOW!';
+  }, delay);
+
+  canvas.onclick = handleArenaClick;
+}
+
+function handleArenaClick() {
+  if (!gameActive) return;
+
+  if (state === STATES.WAITING) {
+    clearTimeout(waitTimer);
+    gameActive = false;
+    setGameState(STATES.FALSE_START);
+    document.getElementById('btn-main').textContent = 'Try Again';
+    document.getElementById('btn-main').disabled = false;
+    canvas.onclick = null;
+    return;
+  }
+
+  if (state === STATES.READY) {
+    const reactionTime = Math.round(performance.now() - stimulusTime);
+    gameActive = false;
+    attempts.push(reactionTime);
+    updateStats();
+    setGameState(STATES.RESULT, reactionTime);
+    document.getElementById('btn-main').textContent = 'Next Round';
+    document.getElementById('btn-main').disabled = false;
+    canvas.onclick = null;
+    return;
+  }
+}
+
+function resetGame() {
+  clearTimeout(waitTimer);
+  gameActive = false;
+  attempts = [];
+  stimulusTime = null;
+  canvas.onclick = null;
+
+  document.getElementById('stat-avg').textContent = '—';
+  document.getElementById('stat-best').textContent = '—';
+  document.getElementById('stat-count').textContent = '0';
+  document.getElementById('stat-last').textContent = '—';
+  document.getElementById('history-list').innerHTML = '<div class="empty-history">No attempts yet</div>';
+  document.getElementById('btn-main').textContent = 'Start Game';
+  document.getElementById('btn-main').disabled = false;
+  document.getElementById('btn-reset').style.display = 'none';
+
+  setGameState(STATES.IDLE);
+}
+
+canvas.style.cursor = 'pointer';
+canvas.addEventListener('click', handleArenaClick);
+</script>
+</body>
+</html>
