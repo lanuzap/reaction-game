@@ -3,837 +3,766 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reaction Timer — Portfolio Project</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+<title>Reflex — 3D Reaction Timer</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-  :root {
-    --bg: #0F172A;
-    --surface: #1E293B;
-    --surface2: #263348;
-    --text: #F1F5F9;
-    --muted: #94A3B8;
-    --ready: #10B981;
-    --wait: #F59E0B;
-    --result: #3B82F6;
-    --error: #EF4444;
-    --border: rgba(148,163,184,0.12);
-  }
+:root {
+  --bg: #0F172A;
+  --surface: #1E293B;
+  --surface-hover: #263348;
+  --text: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --ready: #10B981;
+  --waiting: #F59E0B;
+  --result: #3B82F6;
+  --error: #EF4444;
+  --glow-ready: rgba(16, 185, 129, 0.3);
+  --glow-waiting: rgba(245, 158, 11, 0.3);
+  --glow-result: rgba(59, 130, 246, 0.3);
+  --glow-error: rgba(239, 68, 68, 0.3);
+}
 
-  html, body {
-    height: 100%;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', system-ui, sans-serif;
-    overflow-x: hidden;
-  }
+html, body {
+  height: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
 
-  body {
-    display: flex;
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+/* Three.js canvas background */
+#three-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+}
+
+/* Overlay UI */
+#ui-overlay {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  pointer-events: none;
+}
+
+#ui-overlay > * { pointer-events: auto; }
+
+/* Header */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.logo {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--result) 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.logo span {
+  font-weight: 400;
+  font-size: 13px;
+  background: none;
+  -webkit-text-fill-color: var(--text-secondary);
+  margin-left: 8px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.header-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.header-stat {
+  text-align: right;
+}
+
+.header-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.header-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Main game area */
+.game-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+}
+
+/* State message */
+.state-message {
+  text-align: center;
+  padding: 0 24px;
+  position: relative;
+  z-index: 5;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.state-title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 48px);
+  margin-bottom: 8px;
+  transition: color 0.3s ease;
+}
+
+.state-subtitle {
+  font-size: clamp(13px, 2vw, 16px);
+  color: var(--text-secondary);
+  font-weight: 400;
+  line-height: 1.6;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+/* Reaction time display */
+.reaction-display {
+  text-align: center;
+  margin-top: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reaction-display.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reaction-time {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: clamp(56px, 12vw, 96px);
+  line-height: 1;
+  letter-spacing: -3px;
+}
+
+.reaction-unit {
+  font-size: clamp(16px, 3vw, 22px);
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+
+.reaction-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Bottom panel */
+.bottom-panel {
+  padding: 16px 24px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(148, 163, 184, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stats-row {
+  display: flex;
+  gap: 20px;
+}
+
+.stat-card {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  border-radius: 10px;
+  padding: 10px 16px;
+  min-width: 90px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.btn-group {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 20px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.6);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--surface-hover);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+.btn-primary {
+  background: var(--result);
+  border-color: var(--result);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+/* Game state colors */
+[data-state="idle"] .state-title { color: var(--text); }
+[data-state="waiting"] .state-title { color: var(--waiting); }
+[data-state="ready"] .state-title { color: var(--ready); }
+[data-state="result"] .state-title { color: var(--result); }
+[data-state="result"] .reaction-time { color: var(--result); }
+[data-state="early"] .state-title { color: var(--error); }
+[data-state="early"] .reaction-time { color: var(--error); }
+
+/* Pulse ring animation */
+.pulse-ring {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+}
+
+[data-state="waiting"] .pulse-ring {
+  border-color: var(--waiting);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+[data-state="ready"] .pulse-ring {
+  border-color: var(--ready);
+  animation: pulse 0.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.9); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 0; }
+  100% { transform: scale(0.9); opacity: 0; }
+}
+
+/* Mobile adjustments */
+@media (max-width: 680px) {
+  header { padding: 12px 16px; }
+  .header-stats { gap: 16px; }
+  .header-stat-value { font-size: 14px; }
+  .bottom-panel {
     flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
+    padding: 12px 16px;
   }
+  .stats-row { gap: 8px; }
+  .stat-card { min-width: 72px; padding: 8px 10px; }
+  .stat-value { font-size: 15px; }
+  .btn { padding: 8px 14px; font-size: 12px; }
+}
 
-  header {
-    width: 100%;
-    max-width: 960px;
-    padding: 2rem 1.5rem 0;
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-  }
+@media (max-width: 400px) {
+  .logo span { display: none; }
+  .header-stat:last-child { display: none; }
+}
 
-  header h1 {
-    font-family: 'Outfit', sans-serif;
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-
-  header span {
-    font-size: 0.8rem;
-    color: var(--muted);
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .layout {
-    width: 100%;
-    max-width: 960px;
-    padding: 1.5rem;
-    display: grid;
-    grid-template-columns: 1fr 300px;
-    gap: 1.25rem;
-    flex: 1;
-  }
-
-  @media (max-width: 700px) {
-    .layout { grid-template-columns: 1fr; }
-  }
-
-  .arena-card {
-    background: var(--surface);
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    min-height: 420px;
-  }
-
-  #three-canvas {
-    width: 100%;
-    flex: 1;
-    display: block;
-    cursor: pointer;
-  }
-
-  .arena-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    gap: 12px;
-    padding: 2rem;
-    text-align: center;
-  }
-
-  .state-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 16px;
-    border-radius: 99px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    transition: all 0.3s ease;
-  }
-
-  .state-badge.idle { background: rgba(148,163,184,0.15); color: var(--muted); }
-  .state-badge.waiting { background: rgba(245,158,11,0.18); color: var(--wait); }
-  .state-badge.ready { background: rgba(16,185,129,0.18); color: var(--ready); }
-  .state-badge.result { background: rgba(59,130,246,0.18); color: var(--result); }
-  .state-badge.false-start { background: rgba(239,68,68,0.18); color: var(--error); }
-
-  .state-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: currentColor;
-    animation: none;
-  }
-
-  .state-badge.waiting .state-dot,
-  .state-badge.ready .state-dot {
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.7); }
-  }
-
-  .overlay-headline {
-    font-family: 'Outfit', sans-serif;
-    font-size: clamp(1.5rem, 4vw, 2.5rem);
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    transition: all 0.3s ease;
-  }
-
-  .overlay-sub {
-    font-size: 0.875rem;
-    color: var(--muted);
-    max-width: 280px;
-    line-height: 1.6;
-  }
-
-  .result-time {
-    font-family: 'Outfit', sans-serif;
-    font-size: clamp(2.5rem, 8vw, 5rem);
-    font-weight: 700;
-    color: var(--result);
-    letter-spacing: -0.04em;
-    line-height: 1;
-  }
-
-  .result-ms {
-    font-size: 1.25rem;
-    color: var(--muted);
-    margin-left: 4px;
-  }
-
-  .arena-footer {
-    padding: 1rem 1.25rem;
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 10px;
-    background: var(--surface);
-  }
-
-  .btn {
-    padding: 9px 20px;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    border: none;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    letter-spacing: 0.01em;
-  }
-
-  .btn:active { transform: scale(0.97); }
-
-  .btn-primary {
-    background: var(--ready);
-    color: #fff;
-    flex: 1;
-  }
-
-  .btn-primary:hover { background: #0ea271; }
-  .btn-primary:disabled { background: rgba(16,185,129,0.3); cursor: not-allowed; transform: none; }
-
-  .btn-ghost {
-    background: rgba(148,163,184,0.1);
-    color: var(--muted);
-    border: 1px solid var(--border);
-  }
-
-  .btn-ghost:hover { background: rgba(148,163,184,0.18); color: var(--text); }
-
-  .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .stat-card {
-    background: var(--surface);
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    padding: 1.1rem 1.25rem;
-  }
-
-  .stat-card h3 {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .stat-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .stat-label {
-    font-size: 0.7rem;
-    color: var(--muted);
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .stat-value {
-    font-family: 'Outfit', sans-serif;
-    font-size: 1.6rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: var(--text);
-    line-height: 1;
-  }
-
-  .stat-value.accent-ready { color: var(--ready); }
-  .stat-value.accent-result { color: var(--result); }
-
-  .history-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 220px;
-    overflow-y: auto;
-  }
-
-  .history-list::-webkit-scrollbar { width: 4px; }
-  .history-list::-webkit-scrollbar-track { background: transparent; }
-  .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  .history-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: var(--surface2);
-    font-size: 0.82rem;
-    transition: opacity 0.3s ease;
-  }
-
-  .history-item .attempt-num {
-    color: var(--muted);
-    font-size: 0.72rem;
-    min-width: 24px;
-  }
-
-  .history-item .attempt-time {
-    font-family: 'Outfit', sans-serif;
-    font-weight: 600;
-    font-size: 0.95rem;
-  }
-
-  .history-item .attempt-bar {
-    flex: 1;
-    height: 3px;
-    background: rgba(148,163,184,0.1);
-    border-radius: 2px;
-    margin: 0 10px;
-    overflow: hidden;
-  }
-
-  .history-item .attempt-fill {
-    height: 100%;
-    border-radius: 2px;
-    background: var(--result);
-    transition: width 0.4s ease;
-  }
-
-  .history-item.best .attempt-time { color: var(--ready); }
-  .history-item.best .attempt-fill { background: var(--ready); }
-
-  .instructions-card {
-    background: var(--surface);
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    padding: 1.1rem 1.25rem;
-  }
-
-  .instructions-card h3 {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-
-  .instructions-card ol {
-    padding-left: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .instructions-card li {
-    font-size: 0.8rem;
-    color: var(--muted);
-    line-height: 1.5;
-  }
-
-  .instructions-card li strong {
-    color: var(--text);
-    font-weight: 500;
-  }
-
-  .empty-history {
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-align: center;
-    padding: 1.5rem 0;
-  }
-
-  footer {
-    width: 100%;
-    max-width: 960px;
-    padding: 1rem 1.5rem 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-
-  footer a { color: var(--muted); text-decoration: none; }
-  footer a:hover { color: var(--text); }
+/* Subtle ambient noise overlay */
+#app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
 </style>
 </head>
 <body>
+<div id="app" data-state="idle">
 
-<header>
-  <h1>Reaction Timer</h1>
-  <span>Three.js Portfolio Demo</span>
-</header>
+  <canvas id="three-canvas"></canvas>
 
-<div class="layout">
-  <div class="arena-card">
-    <canvas id="three-canvas"></canvas>
-    <div class="arena-overlay" id="overlay">
-      <div class="state-badge idle" id="state-badge">
-        <div class="state-dot"></div>
-        <span id="state-label">Ready to start</span>
+  <div id="ui-overlay">
+    <header>
+      <div class="logo">REFLEX<span>3D Timer</span></div>
+      <div class="header-stats">
+        <div class="header-stat">
+          <div class="header-stat-label">Attempts</div>
+          <div class="header-stat-value" id="h-attempts">0</div>
+        </div>
+        <div class="header-stat">
+          <div class="header-stat-label">Best</div>
+          <div class="header-stat-value" id="h-best">— ms</div>
+        </div>
       </div>
-      <div class="overlay-headline" id="overlay-headline">Test Your Reflexes</div>
-      <div class="overlay-sub" id="overlay-sub">Click the arena and react the moment the shape turns green.</div>
-    </div>
-    <div class="arena-footer">
-      <button class="btn btn-primary" id="btn-main" onclick="handleMainButton()">Start Game</button>
-      <button class="btn btn-ghost" id="btn-reset" onclick="resetGame()" style="display:none">Reset</button>
-    </div>
-  </div>
+    </header>
 
-  <div class="sidebar">
-    <div class="stat-card">
-      <h3>Session Stats</h3>
-      <div class="stats-grid">
-        <div class="stat-item">
-          <span class="stat-label">Average</span>
-          <span class="stat-value accent-result" id="stat-avg">—</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Best</span>
-          <span class="stat-value accent-ready" id="stat-best">—</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Attempts</span>
-          <span class="stat-value" id="stat-count">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Last</span>
-          <span class="stat-value" id="stat-last">—</span>
-        </div>
+    <div class="game-area" id="game-area">
+      <div class="pulse-ring"></div>
+      <div class="state-message">
+        <div class="state-title" id="state-title">Test Your Reflexes</div>
+        <div class="state-subtitle" id="state-subtitle">Click anywhere or press Space to start. When the shape turns green, click as fast as you can.</div>
+      </div>
+      <div class="reaction-display" id="reaction-display">
+        <div class="reaction-time" id="reaction-time"></div>
+        <div class="reaction-label" id="reaction-label"></div>
       </div>
     </div>
 
-    <div class="stat-card" style="flex:1">
-      <h3>History</h3>
-      <div class="history-list" id="history-list">
-        <div class="empty-history">No attempts yet</div>
+    <div class="bottom-panel">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Average</div>
+          <div class="stat-value" id="s-avg">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Best</div>
+          <div class="stat-value" id="s-best" style="color:var(--ready)">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Last</div>
+          <div class="stat-value" id="s-last" style="color:var(--result)">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Tries</div>
+          <div class="stat-value" id="s-tries">0</div>
+        </div>
       </div>
-    </div>
-
-    <div class="instructions-card">
-      <h3>How to Play</h3>
-      <ol>
-        <li><strong>Start</strong> the game and watch the 3D scene</li>
-        <li>Wait for the shape to <strong>turn green</strong> — it will happen between 1 and 5 seconds</li>
-        <li><strong>Click</strong> the arena as fast as you can</li>
-        <li>Clicking too early is a <strong>false start</strong> — be patient!</li>
-      </ol>
+      <div class="btn-group">
+        <button class="btn" id="btn-reset" onclick="resetGame()">Reset</button>
+        <button class="btn btn-primary" id="btn-start" onclick="handleAction()">Start</button>
+      </div>
     </div>
   </div>
 </div>
 
-<footer>
-  <span>Built with Three.js · Vanilla JS · No frameworks</span>
-  <span>Timing via <code>performance.now()</code></span>
-</footer>
-
 <script>
-const STATES = { IDLE: 'idle', WAITING: 'waiting', READY: 'ready', RESULT: 'result', FALSE_START: 'false-start' };
-
-let state = STATES.IDLE;
-let waitTimer = null;
-let stimulusTime = null;
+// ========== GAME STATE ==========
+let state = 'idle'; // idle | waiting | ready | result | early
+let waitTimeout = null;
+let stimulusTime = 0;
 let attempts = [];
-let animFrameId = null;
 
+function setState(newState) {
+  state = newState;
+  document.getElementById('app').setAttribute('data-state', newState);
+}
+
+// ========== THREE.JS SCENE ==========
 const canvas = document.getElementById('three-canvas');
-const overlay = document.getElementById('overlay');
-
-// ─── Three.js Setup ───────────────────────────────────────────────────────────
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x0F172A, 1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x0F172A, 0.04);
+scene.fog = new THREE.FogExp2(0x0F172A, 0.015);
 
-const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
-camera.position.set(0, 2, 8);
-camera.lookAt(0, 0, 0);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 0, 8);
 
 // Lighting
-const ambientLight = new THREE.AmbientLight(0x334155, 1.5);
+const ambientLight = new THREE.AmbientLight(0x94A3B8, 0.3);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-dirLight.position.set(5, 10, 7);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(1024, 1024);
-scene.add(dirLight);
+const mainLight = new THREE.PointLight(0x3B82F6, 2, 30);
+mainLight.position.set(3, 4, 6);
+scene.add(mainLight);
 
-const pointLight1 = new THREE.PointLight(0x3B82F6, 2, 20);
-pointLight1.position.set(-4, 3, 4);
-scene.add(pointLight1);
+const fillLight = new THREE.PointLight(0xa78bfa, 1.2, 25);
+fillLight.position.set(-4, -2, 4);
+scene.add(fillLight);
 
-const pointLight2 = new THREE.PointLight(0x10B981, 0, 20);
-pointLight2.position.set(4, -2, 4);
-scene.add(pointLight2);
-
-// Materials
-const matIdle    = new THREE.MeshStandardMaterial({ color: 0x3B82F6, metalness: 0.4, roughness: 0.3, emissive: 0x1a3a6a });
-const matWaiting = new THREE.MeshStandardMaterial({ color: 0xF59E0B, metalness: 0.4, roughness: 0.3, emissive: 0x5a3800 });
-const matReady   = new THREE.MeshStandardMaterial({ color: 0x10B981, metalness: 0.3, roughness: 0.2, emissive: 0x053d28 });
-const matError   = new THREE.MeshStandardMaterial({ color: 0xEF4444, metalness: 0.4, roughness: 0.3, emissive: 0x5c0f0f });
-const matResult  = new THREE.MeshStandardMaterial({ color: 0x3B82F6, metalness: 0.4, roughness: 0.3, emissive: 0x1a3a6a });
+const rimLight = new THREE.PointLight(0x10B981, 0.8, 20);
+rimLight.position.set(0, -3, -5);
+scene.add(rimLight);
 
 // Central shape group
-const group = new THREE.Group();
-scene.add(group);
+const centralGroup = new THREE.Group();
+scene.add(centralGroup);
 
 // Main icosahedron
-const mainGeo = new THREE.IcosahedronGeometry(1.4, 1);
-const mainMesh = new THREE.Mesh(mainGeo, matIdle.clone());
-mainMesh.castShadow = true;
-group.add(mainMesh);
+const icoGeo = new THREE.IcosahedronGeometry(1.3, 1);
+const icoMat = new THREE.MeshStandardMaterial({
+  color: 0x3B82F6,
+  metalness: 0.3,
+  roughness: 0.2,
+  wireframe: false,
+  emissive: 0x3B82F6,
+  emissiveIntensity: 0.08
+});
+const ico = new THREE.Mesh(icoGeo, icoMat);
+centralGroup.add(ico);
 
 // Wireframe overlay
-const wireGeo = new THREE.IcosahedronGeometry(1.42, 1);
-const wireMat = new THREE.MeshBasicMaterial({ color: 0x3B82F6, wireframe: true, transparent: true, opacity: 0.18 });
-const wireMesh = new THREE.Mesh(wireGeo, wireMat);
-group.add(wireMesh);
-
-// Orbiting satellites
-const satellites = [];
-const satPositions = [
-  { r: 3.2, a: 0,    b: 0.4, size: 0.28, speed: 0.8 },
-  { r: 2.8, a: 2.1,  b: 1.2, size: 0.22, speed: -1.1 },
-  { r: 3.5, a: 4.2,  b: -0.6, size: 0.32, speed: 0.6 },
-];
-satPositions.forEach(s => {
-  const geo = new THREE.OctahedronGeometry(s.size, 0);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x94A3B8, metalness: 0.6, roughness: 0.3, transparent: true, opacity: 0.7 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.castShadow = true;
-  scene.add(mesh);
-  satellites.push({ mesh, ...s, angle: s.a });
+const wireGeo = new THREE.IcosahedronGeometry(1.5, 1);
+const wireMat = new THREE.MeshBasicMaterial({
+  color: 0x3B82F6,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.12
 });
+const wire = new THREE.Mesh(wireGeo, wireMat);
+centralGroup.add(wire);
 
-// Ground plane (subtle)
-const groundGeo = new THREE.PlaneGeometry(30, 30);
-const groundMat = new THREE.MeshStandardMaterial({ color: 0x0F172A, metalness: 0, roughness: 1 });
-const ground = new THREE.Mesh(groundGeo, groundMat);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -3.5;
-ground.receiveShadow = true;
-scene.add(ground);
+// Orbiting small shapes
+const orbiters = [];
+const orbiterGeos = [
+  new THREE.TetrahedronGeometry(0.18, 0),
+  new THREE.OctahedronGeometry(0.15, 0),
+  new THREE.BoxGeometry(0.2, 0.2, 0.2),
+  new THREE.DodecahedronGeometry(0.14, 0),
+  new THREE.IcosahedronGeometry(0.13, 0),
+  new THREE.TetrahedronGeometry(0.16, 0)
+];
 
-// Particle field
-const particleCount = 80;
+for (let i = 0; i < 6; i++) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x94A3B8,
+    metalness: 0.5,
+    roughness: 0.3,
+    emissive: 0x3B82F6,
+    emissiveIntensity: 0.05
+  });
+  const mesh = new THREE.Mesh(orbiterGeos[i], mat);
+  const angle = (i / 6) * Math.PI * 2;
+  const radius = 2.5 + Math.random() * 0.8;
+  const speed = 0.3 + Math.random() * 0.3;
+  const yOff = (Math.random() - 0.5) * 1.5;
+  orbiters.push({ mesh, angle, radius, speed, yOff, phase: Math.random() * Math.PI * 2 });
+  scene.add(mesh);
+}
+
+// Background particles
+const particleCount = 120;
 const particleGeo = new THREE.BufferGeometry();
 const positions = new Float32Array(particleCount * 3);
 for (let i = 0; i < particleCount; i++) {
-  positions[i*3]   = (Math.random() - 0.5) * 20;
-  positions[i*3+1] = (Math.random() - 0.5) * 10;
-  positions[i*3+2] = (Math.random() - 0.5) * 12 - 4;
+  positions[i * 3] = (Math.random() - 0.5) * 30;
+  positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+  positions[i * 3 + 2] = (Math.random() - 0.5) * 20 - 5;
 }
 particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-const particleMat = new THREE.PointsMaterial({ color: 0x475569, size: 0.06, transparent: true, opacity: 0.8 });
+const particleMat = new THREE.PointsMaterial({
+  color: 0x94A3B8,
+  size: 0.04,
+  transparent: true,
+  opacity: 0.5,
+  sizeAttenuation: true
+});
 const particles = new THREE.Points(particleGeo, particleMat);
 scene.add(particles);
 
-// Ring
-const ringGeo = new THREE.TorusGeometry(2.2, 0.04, 8, 60);
-const ringMat = new THREE.MeshStandardMaterial({ color: 0x3B82F6, metalness: 0.8, roughness: 0.2, transparent: true, opacity: 0.5 });
-const ring = new THREE.Mesh(ringGeo, ringMat);
-ring.rotation.x = Math.PI / 3;
-group.add(ring);
+// Color targets for smooth transition
+let targetColor = new THREE.Color(0x3B82F6);
+let targetEmissive = new THREE.Color(0x3B82F6);
+let targetEmissiveIntensity = 0.08;
+let targetWireOpacity = 0.12;
+let targetLightColor = new THREE.Color(0x3B82F6);
+let targetScale = 1.0;
+let currentScale = 1.0;
 
-// Current active material
-let activeMat = matIdle;
-let targetEmissiveIntensity = 1;
-let currentEmissiveIntensity = 1;
-let scaleTarget = 1;
-let currentScale = 1;
-let flashPhase = 0;
-
-function setMaterial(mat, emissiveBoost = 1) {
-  mainMesh.material = mat.clone();
-  wireMesh.material.color.set(mat.color);
-  ringMat.color.set(mat.color);
-  pointLight1.color.set(mat.color);
-  pointLight2.color.set(mat.color);
-  activeMat = mat;
-  targetEmissiveIntensity = emissiveBoost;
+function setSceneColors(hex, emissiveHex, intensity, wireOp) {
+  targetColor.set(hex);
+  targetEmissive.set(emissiveHex || hex);
+  targetEmissiveIntensity = intensity;
+  targetWireOpacity = wireOp;
+  targetLightColor.set(hex);
 }
 
-// Resize
-function resize() {
-  const w = canvas.parentElement.clientWidth;
-  const h = Math.max(360, canvas.parentElement.clientHeight - 64);
-  renderer.setSize(w, h);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-}
-resize();
-window.addEventListener('resize', resize);
+// ========== ANIMATION LOOP ==========
+const clock = new THREE.Clock();
 
-// Animation loop
-let clock = new THREE.Clock();
 function animate() {
-  animFrameId = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
-  const dt = clock.getDelta ? 0.016 : 0.016;
+  const dt = Math.min(clock.getDelta(), 0.05);
 
-  // Main group rotation
-  let spinSpeed = 0.25;
-  if (state === STATES.WAITING) spinSpeed = 0.5;
-  if (state === STATES.READY)   spinSpeed = 1.8;
-  if (state === STATES.FALSE_START) spinSpeed = 3;
+  // Smooth color lerp
+  icoMat.color.lerp(targetColor, 0.06);
+  icoMat.emissive.lerp(targetEmissive, 0.06);
+  icoMat.emissiveIntensity += (targetEmissiveIntensity - icoMat.emissiveIntensity) * 0.06;
+  wireMat.color.lerp(targetColor, 0.06);
+  wireMat.opacity += (targetWireOpacity - wireMat.opacity) * 0.06;
+  mainLight.color.lerp(targetLightColor, 0.04);
 
-  group.rotation.y += 0.016 * spinSpeed;
-  group.rotation.x = Math.sin(t * 0.4) * 0.15;
-  group.rotation.z = Math.cos(t * 0.3) * 0.08;
+  // Scale animation
+  currentScale += (targetScale - currentScale) * 0.08;
+  centralGroup.scale.setScalar(currentScale);
 
-  // Satellites
-  satellites.forEach(s => {
-    s.angle += 0.016 * s.speed;
-    s.mesh.position.x = Math.cos(s.angle) * s.r;
-    s.mesh.position.y = Math.sin(s.angle * 0.7) * s.b * 1.2;
-    s.mesh.position.z = Math.sin(s.angle) * s.r * 0.6;
-    s.mesh.rotation.x += 0.03 * s.speed;
-    s.mesh.rotation.y += 0.02 * s.speed;
+  // Central rotation
+  const rotSpeed = state === 'ready' ? 2.5 : state === 'waiting' ? 0.6 : 0.35;
+  centralGroup.rotation.y += rotSpeed * 0.016;
+  centralGroup.rotation.x = Math.sin(t * 0.5) * 0.15;
+
+  // Wire counter-rotate
+  wire.rotation.x -= 0.003;
+  wire.rotation.z += 0.004;
+
+  // Orbiters
+  orbiters.forEach(o => {
+    o.angle += o.speed * 0.016;
+    o.mesh.position.x = Math.cos(o.angle) * o.radius;
+    o.mesh.position.z = Math.sin(o.angle) * o.radius;
+    o.mesh.position.y = o.yOff + Math.sin(t * 0.8 + o.phase) * 0.3;
+    o.mesh.rotation.x += 0.015;
+    o.mesh.rotation.y += 0.02;
+    // Match color
+    o.mesh.material.color.lerp(targetColor, 0.03);
+    o.mesh.material.emissive.lerp(targetEmissive, 0.03);
   });
 
   // Particles drift
-  particles.rotation.y += 0.0005;
-  particles.rotation.x += 0.0002;
+  particles.rotation.y += 0.0003;
+  particles.rotation.x += 0.0001;
 
-  // Scale breathe / bounce
-  if (state === STATES.READY) {
-    scaleTarget = 1 + Math.sin(t * 6) * 0.05;
-    flashPhase += 0.016;
-    mainMesh.material.emissiveIntensity = 1 + Math.sin(flashPhase * 8) * 0.5;
-    pointLight2.intensity = 2 + Math.sin(flashPhase * 6) * 1.5;
-    pointLight2.color.set(0x10B981);
-  } else if (state === STATES.WAITING) {
-    scaleTarget = 1 + Math.sin(t * 2) * 0.02;
-    pointLight2.intensity = 0.5 + Math.sin(t * 3) * 0.3;
-    pointLight2.color.set(0xF59E0B);
-  } else if (state === STATES.FALSE_START) {
-    scaleTarget = 1 + Math.sin(t * 12) * 0.08;
-    pointLight2.intensity = 3;
-    pointLight2.color.set(0xEF4444);
-  } else if (state === STATES.RESULT) {
-    scaleTarget = 1 + Math.sin(t * 1.5) * 0.04;
-    pointLight2.intensity = 1.5;
-    pointLight2.color.set(0x3B82F6);
-  } else {
-    scaleTarget = 1 + Math.sin(t * 1) * 0.02;
-    pointLight2.intensity = 0;
+  // Breathing effect in ready state
+  if (state === 'ready') {
+    const pulse = 1.0 + Math.sin(t * 8) * 0.06;
+    centralGroup.scale.setScalar(currentScale * pulse);
   }
-
-  currentScale += (scaleTarget - currentScale) * 0.1;
-  group.scale.setScalar(currentScale);
-
-  // Ring pulse
-  ring.rotation.z += 0.008;
-  ring.rotation.y = t * 0.2;
-  if (state === STATES.READY) {
-    ringMat.opacity = 0.6 + Math.sin(t * 8) * 0.3;
-    ringMat.color.set(0x10B981);
-  } else if (state === STATES.WAITING) {
-    ringMat.opacity = 0.25 + Math.sin(t * 2) * 0.1;
-    ringMat.color.set(0xF59E0B);
-  } else {
-    ringMat.opacity = 0.3 + Math.sin(t * 0.8) * 0.05;
-    ringMat.color.set(0x3B82F6);
-  }
-
-  // Camera gentle orbit
-  camera.position.x = Math.sin(t * 0.12) * 0.8;
-  camera.position.y = 2 + Math.sin(t * 0.09) * 0.3;
-  camera.lookAt(0, 0, 0);
 
   renderer.render(scene, camera);
 }
 animate();
 
-// ─── Game Logic ───────────────────────────────────────────────────────────────
-function setGameState(newState, msg) {
-  state = newState;
-  const badge = document.getElementById('state-badge');
-  const label = document.getElementById('state-label');
-  const headline = document.getElementById('overlay-headline');
-  const sub = document.getElementById('overlay-sub');
+// ========== GAME LOGIC ==========
 
-  badge.className = 'state-badge ' + newState;
-
-  if (newState === STATES.IDLE) {
-    label.textContent = 'Ready to start';
-    headline.textContent = 'Test Your Reflexes';
-    headline.style.color = '';
-    sub.textContent = 'Click the arena and react the moment the shape turns green.';
-    overlay.style.display = 'flex';
-    setMaterial(matIdle, 1);
-  } else if (newState === STATES.WAITING) {
-    label.textContent = 'Wait for it…';
-    headline.textContent = 'Stay Sharp';
-    headline.style.color = '#F59E0B';
-    sub.textContent = 'The shape will turn green at any moment. Don\'t click yet!';
-    overlay.style.display = 'flex';
-    setMaterial(matWaiting, 1.5);
-  } else if (newState === STATES.READY) {
-    label.textContent = 'GO NOW!';
-    headline.textContent = 'CLICK!';
-    headline.style.color = '#10B981';
-    sub.textContent = '';
-    overlay.style.display = 'flex';
-    setMaterial(matReady, 2);
-    flashPhase = 0;
-  } else if (newState === STATES.RESULT) {
-    label.textContent = 'Result';
-    const ms = msg;
-    headline.innerHTML = `<span class="result-time">${ms}<span class="result-ms">ms</span></span>`;
-    headline.style.color = '#3B82F6';
-    sub.textContent = getRating(ms);
-    overlay.style.display = 'flex';
-    setMaterial(matResult, 1.5);
-  } else if (newState === STATES.FALSE_START) {
-    label.textContent = 'False Start!';
-    headline.textContent = 'Too Early!';
-    headline.style.color = '#EF4444';
-    sub.textContent = 'You clicked before the signal. Wait for green!';
-    overlay.style.display = 'flex';
-    setMaterial(matError, 2);
+function handleAction() {
+  switch (state) {
+    case 'idle':
+    case 'result':
+    case 'early':
+      startWaiting();
+      break;
+    case 'waiting':
+      falseStart();
+      break;
+    case 'ready':
+      recordReaction();
+      break;
   }
 }
 
-function getRating(ms) {
-  if (ms < 150) return '⚡ Superhuman — are you sure you didn\'t click early?';
-  if (ms < 200) return '🏆 Exceptional reflexes!';
-  if (ms < 250) return '✨ Excellent reaction time!';
-  if (ms < 300) return '👍 Above average. Nice!';
-  if (ms < 400) return '😊 Average human reaction time.';
-  if (ms < 500) return '🙂 Keep practicing!';
-  return '😅 Slow and steady… try again!';
-}
+function startWaiting() {
+  setState('waiting');
+  updateUI('Wait for green...', 'The shape will turn green. Click the moment it changes!');
+  hideReaction();
+  updateButton('...');
 
-function updateStats() {
-  if (attempts.length === 0) return;
-  const avg = Math.round(attempts.reduce((a, b) => a + b, 0) / attempts.length);
-  const best = Math.min(...attempts);
-  document.getElementById('stat-avg').textContent = avg + 'ms';
-  document.getElementById('stat-best').textContent = best + 'ms';
-  document.getElementById('stat-count').textContent = attempts.length;
-  document.getElementById('stat-last').textContent = attempts[attempts.length - 1] + 'ms';
-
-  const list = document.getElementById('history-list');
-  const maxTime = Math.max(...attempts, 1000);
-  list.innerHTML = '';
-  [...attempts].reverse().forEach((ms, i) => {
-    const idx = attempts.length - i;
-    const isBest = ms === best && attempts.filter(a => a === best).length === 1 || ms === best;
-    const pct = Math.min(100, (ms / maxTime) * 100);
-    const item = document.createElement('div');
-    item.className = 'history-item' + (ms === best ? ' best' : '');
-    item.innerHTML = `
-      <span class="attempt-num">#${idx}</span>
-      <div class="attempt-bar"><div class="attempt-fill" style="width:${pct}%"></div></div>
-      <span class="attempt-time">${ms}ms</span>
-    `;
-    list.appendChild(item);
-  });
-}
-
-let gameActive = false;
-
-function handleMainButton() {
-  if (state === STATES.IDLE || state === STATES.RESULT || state === STATES.FALSE_START) {
-    startRound();
-  } else if (state === STATES.WAITING || state === STATES.READY) {
-    handleArenaClick();
-  }
-}
-
-function startRound() {
-  gameActive = true;
-  clearTimeout(waitTimer);
-  stimulusTime = null;
-
-  setGameState(STATES.WAITING);
-
-  document.getElementById('btn-main').textContent = 'Click here when GREEN';
-  document.getElementById('btn-reset').style.display = 'flex';
+  // Scene: amber, subdued
+  setSceneColors(0xF59E0B, 0xF59E0B, 0.05, 0.08);
+  targetScale = 0.85;
 
   const delay = 1000 + Math.random() * 4000;
-  waitTimer = setTimeout(() => {
-    if (state !== STATES.WAITING) return;
-    stimulusTime = performance.now();
-    setGameState(STATES.READY);
-    document.getElementById('btn-main').textContent = 'CLICK NOW!';
-  }, delay);
-
-  canvas.onclick = handleArenaClick;
+  waitTimeout = setTimeout(goReady, delay);
 }
 
-function handleArenaClick() {
-  if (!gameActive) return;
+function goReady() {
+  setState('ready');
+  stimulusTime = performance.now();
+  updateUI('CLICK NOW!', '');
 
-  if (state === STATES.WAITING) {
-    clearTimeout(waitTimer);
-    gameActive = false;
-    setGameState(STATES.FALSE_START);
-    document.getElementById('btn-main').textContent = 'Try Again';
-    document.getElementById('btn-main').disabled = false;
-    canvas.onclick = null;
-    return;
-  }
+  // Scene: green, energetic
+  setSceneColors(0x10B981, 0x10B981, 0.35, 0.25);
+  targetScale = 1.2;
 
-  if (state === STATES.READY) {
-    const reactionTime = Math.round(performance.now() - stimulusTime);
-    gameActive = false;
-    attempts.push(reactionTime);
-    updateStats();
-    setGameState(STATES.RESULT, reactionTime);
-    document.getElementById('btn-main').textContent = 'Next Round';
-    document.getElementById('btn-main').disabled = false;
-    canvas.onclick = null;
-    return;
-  }
+  updateButton('Click!');
+}
+
+function recordReaction() {
+  const elapsed = performance.now() - stimulusTime;
+  const ms = Math.round(elapsed);
+  setState('result');
+
+  attempts.push(ms);
+  showReaction(ms);
+  updateStats();
+
+  // Scene: blue celebration
+  setSceneColors(0x3B82F6, 0x3B82F6, 0.15, 0.15);
+  targetScale = 1.05;
+
+  updateUI(getRating(ms), 'Click or press Space to try again');
+  updateButton('Again');
+}
+
+function falseStart() {
+  clearTimeout(waitTimeout);
+  waitTimeout = null;
+  setState('early');
+
+  showReactionEarly();
+
+  // Scene: red warning
+  setSceneColors(0xEF4444, 0xEF4444, 0.3, 0.2);
+  targetScale = 0.7;
+
+  updateUI('Too Early!', 'Wait for the shape to turn green before clicking.');
+  updateButton('Retry');
 }
 
 function resetGame() {
-  clearTimeout(waitTimer);
-  gameActive = false;
+  clearTimeout(waitTimeout);
+  waitTimeout = null;
   attempts = [];
-  stimulusTime = null;
-  canvas.onclick = null;
+  setState('idle');
+  hideReaction();
+  updateStats();
 
-  document.getElementById('stat-avg').textContent = '—';
-  document.getElementById('stat-best').textContent = '—';
-  document.getElementById('stat-count').textContent = '0';
-  document.getElementById('stat-last').textContent = '—';
-  document.getElementById('history-list').innerHTML = '<div class="empty-history">No attempts yet</div>';
-  document.getElementById('btn-main').textContent = 'Start Game';
-  document.getElementById('btn-main').disabled = false;
-  document.getElementById('btn-reset').style.display = 'none';
+  setSceneColors(0x3B82F6, 0x3B82F6, 0.08, 0.12);
+  targetScale = 1.0;
 
-  setGameState(STATES.IDLE);
+  updateUI('Test Your Reflexes', 'Click anywhere or press Space to start. When the shape turns green, click as fast as you can.');
+  updateButton('Start');
 }
 
-canvas.style.cursor = 'pointer';
-canvas.addEventListener('click', handleArenaClick);
+// ========== UI HELPERS ==========
+
+function updateUI(title, subtitle) {
+  document.getElementById('state-title').textContent = title;
+  document.getElementById('state-subtitle').textContent = subtitle;
+}
+
+function updateButton(text) {
+  document.getElementById('btn-start').textContent = text;
+}
+
+function showReaction(ms) {
+  const el = document.getElementById('reaction-display');
+  document.getElementById('reaction-time').innerHTML = ms + '<span class="reaction-unit">ms</span>';
+  document.getElementById('reaction-label').textContent = getLabel(ms);
+  el.classList.add('visible');
+}
+
+function showReactionEarly() {
+  const el = document.getElementById('reaction-display');
+  document.getElementById('reaction-time').innerHTML = '✕';
+  document.getElementById('reaction-label').textContent = 'False start — patience!';
+  el.classList.add('visible');
+}
+
+function hideReaction() {
+  document.getElementById('reaction-display').classList.remove('visible');
+}
+
+function updateStats() {
+  const n = attempts.length;
+  const best = n ? Math.min(...attempts) : null;
+  const avg = n ? Math.round(attempts.reduce((a, b) => a + b, 0) / n) : null;
+  const last = n ? attempts[n - 1] : null;
+
+  document.getElementById('h-attempts').textContent = n;
+  document.getElementById('h-best').textContent = best !== null ? best + ' ms' : '— ms';
+  document.getElementById('s-avg').textContent = avg !== null ? avg + 'ms' : '—';
+  document.getElementById('s-best').textContent = best !== null ? best + 'ms' : '—';
+  document.getElementById('s-last').textContent = last !== null ? last + 'ms' : '—';
+  document.getElementById('s-tries').textContent = n;
+}
+
+function getRating(ms) {
+  if (ms < 180) return 'Superhuman!';
+  if (ms < 220) return 'Incredible!';
+  if (ms < 270) return 'Excellent!';
+  if (ms < 340) return 'Great!';
+  if (ms < 420) return 'Good';
+  return 'Keep Practicing';
+}
+
+function getLabel(ms) {
+  if (ms < 180) return 'Top 1% reaction time';
+  if (ms < 220) return 'Faster than most people';
+  if (ms < 270) return 'Above average';
+  if (ms < 340) return 'Solid reaction time';
+  if (ms < 420) return 'Average — room to improve';
+  return 'Try a few more rounds to warm up';
+}
+
+// ========== INPUT HANDLING ==========
+
+document.getElementById('game-area').addEventListener('click', (e) => {
+  if (e.target.closest('.bottom-panel') || e.target.closest('header')) return;
+  handleAction();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.key === ' ') {
+    e.preventDefault();
+    handleAction();
+  }
+});
+
+// ========== RESIZE ==========
+
+function onResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', onResize);
+
+// ========== PREVENT CONTEXT MENU ON MOBILE ==========
+document.addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>
 </html>
